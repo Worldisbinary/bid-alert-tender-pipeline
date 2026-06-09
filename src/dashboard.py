@@ -14,7 +14,7 @@ from pathlib import Path
 from datetime import datetime
 
 EXCEL_PATH = Path("output/screened_tenders.xlsx")
-OUTPUT_PATH = Path("output/dashboard.html")
+OUTPUT_PATH = Path("output/index.html")
 
 
 def load_data():
