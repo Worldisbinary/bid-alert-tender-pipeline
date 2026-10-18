@@ -126,7 +126,9 @@ class CPPPScraper(PortalScraper):
         super().__init__("CPPP")
 
     def fetch_listings(self, category=None):
-        raise NotImplementedError("CPPP scraper requires captcha bypass.")
+        # CPPP search is CAPTCHA-protected, so listings are exported manually
+        # and loaded through parse_tender(); no automated fetching here.
+        raise NotImplementedError("CPPP listings are CAPTCHA-protected; load a manual export instead.")
 
     def parse_tender(self, raw):
         return TenderRecord(

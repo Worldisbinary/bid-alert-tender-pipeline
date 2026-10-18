@@ -1,7 +1,21 @@
+# Python
 __pycache__/
-*.pyc
-.env
+*.py[cod]
+.venv/
 venv/
-mnt/
-output/*.xlsx
+.ipynb_checkpoints/
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+
+# Generated data and reports (regenerate with src/generate_data.py and src/screening_pipeline.py)
 data/*.csv
+output/*.xlsx
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

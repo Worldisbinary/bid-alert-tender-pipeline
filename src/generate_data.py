@@ -4,6 +4,7 @@ Generates synthetic tender data simulating 5 procurement portals.
 Used for demonstration purposes — mirrors real pipeline structure.
 """
 
+import os
 import pandas as pd
 import numpy as np
 import random
@@ -75,6 +76,7 @@ def generate_tenders(n=160):
 
 if __name__ == "__main__":
     df = generate_tenders(160)
+    os.makedirs("data", exist_ok=True)
     df.to_csv("data/raw_tenders.csv", index=False)
     print(f"Generated {len(df)} tender records across {df['portal'].nunique()} portals.")
     print(df["portal"].value_counts())

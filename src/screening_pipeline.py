@@ -4,6 +4,7 @@ Core tender screening pipeline — reads raw tenders from 5 portals,
 applies eligibility filters and a custom scoring model, outputs ranked shortlist.
 """
 
+import os
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -82,7 +83,7 @@ def score_tenders(df: pd.DataFrame, profile: dict) -> pd.DataFrame:
         df["msme_preferred"] & profile["is_msme"]
     ).astype(float)
 
-    # Value sweet spot — peak score at ₹50L–₹1Cr, tapering at extremes
+    # Value sweet spot — peak score at ₹25L–₹1Cr, tapering at extremes
     def value_score(val):
         if 2_500_000 <= val <= 10_000_000:
             return 1.0
@@ -123,6 +124,8 @@ def score_tenders(df: pd.DataFrame, profile: dict) -> pd.DataFrame:
 
 # ── Step 4: Export to Excel ───────────────────────────────────────────────────
 def export_to_excel(df: pd.DataFrame, output_path: str):
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+
     # Split into tiers
     high   = df[df["composite_score"] >= 0.70].copy()
     medium = df[(df["composite_score"] >= 0.40) & (df["composite_score"] < 0.70)].copy()
