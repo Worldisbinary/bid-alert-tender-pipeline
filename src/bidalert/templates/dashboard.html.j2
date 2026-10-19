@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bid Alert Tender Screening</title>
+<meta name="description" content="Daily screening of public government tenders: dedup, eligibility filters and an explainable fit score.">
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #6b6a65;
+  --grid: #e1e0d9; --border: rgba(11,11,11,0.10); --bar: #2a78d6; --bar-soft: #86b6ef;
+  --f-category: #2a78d6; --f-state: #eb6834; --f-msme: #1baf7a; --f-value: #eda100; --f-deadline: #e87ba4;
+  --live-bg: #e7f3e7; --live-ink: #0a4d0a; --demo-bg: #fff4d6; --demo-ink: #6b4a00;
+  --high: #1c5cab; --medium: #52514e; --low: #898781;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #a3a29b;
+    --grid: #2c2c2a; --border: rgba(255,255,255,0.10); --bar: #3987e5; --bar-soft: #184f95;
+    --f-category: #3987e5; --f-state: #d95926; --f-msme: #199e70; --f-value: #c98500; --f-deadline: #d55181;
+    --live-bg: #12301a; --live-ink: #b9e6c0; --demo-bg: #3a2e0b; --demo-ink: #f3dc9a;
+    --high: #86b6ef; --medium: #c3c2b7; --low: #898781;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #a3a29b;
+  --grid: #2c2c2a; --border: rgba(255,255,255,0.10); --bar: #3987e5; --bar-soft: #184f95;
+  --f-category: #3987e5; --f-state: #d95926; --f-msme: #199e70; --f-value: #c98500; --f-deadline: #d55181;
+  --live-bg: #12301a; --live-ink: #b9e6c0; --demo-bg: #3a2e0b; --demo-ink: #f3dc9a;
+  --high: #86b6ef; --medium: #c3c2b7; --low: #898781;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 1.6rem; margin: 0 0 4px; }
+h2 { font-size: 1.1rem; margin: 0 0 12px; }
+p { margin: 0 0 8px; }
+a { color: var(--bar); }
+.sub { color: var(--ink-2); }
+.small { font-size: 0.85rem; color: var(--muted); }
+.banner { border-radius: 8px; padding: 12px 14px; margin: 16px 0; border: 1px solid var(--border); }
+.banner.live { background: var(--live-bg); color: var(--live-ink); }
+.banner.demo { background: var(--demo-bg); color: var(--demo-ink); }
+.banner strong { display: block; margin-bottom: 2px; }
+.grid { display: grid; gap: 12px; }
+.kpis { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); margin: 16px 0 24px; }
+.tile { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+.tile .v { font-size: 1.7rem; font-weight: 600; }
+.tile .l { color: var(--ink-2); font-size: 0.85rem; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+.two { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.hbar { display: grid; grid-template-columns: minmax(120px, 38%) 1fr auto; gap: 8px; align-items: center; margin: 6px 0; }
+.hbar .track { height: 12px; border-radius: 0 4px 4px 0; }
+.hbar .fill { height: 12px; background: var(--bar); border-radius: 0 4px 4px 0; min-width: 2px; }
+.hbar .n { font-variant-numeric: tabular-nums; color: var(--ink); min-width: 3ch; text-align: right; }
+.hbar .lbl { color: var(--ink-2); font-size: 0.9rem; overflow-wrap: anywhere; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0 0 12px; font-size: 0.85rem; color: var(--ink-2); }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 5px; }
+.hatch { background-image: repeating-linear-gradient(45deg, rgba(0,0,0,0.35) 0 2px, transparent 2px 5px) !important; }
+.tender { border-top: 1px solid var(--grid); padding: 12px 0; }
+.tender:first-of-type { border-top: 0; }
+.tender h3 { font-size: 1rem; margin: 0 0 2px; overflow-wrap: anywhere; }
+.meta { color: var(--ink-2); font-size: 0.85rem; }
+.stack { display: flex; gap: 2px; height: 14px; margin: 8px 0 4px; background: var(--grid); border-radius: 4px; overflow: hidden; }
+.stack span { display: block; height: 100%; }
+.chip { display: inline-block; font-size: 0.75rem; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; margin-left: 6px; }
+.chip.high { color: var(--high); } .chip.medium { color: var(--medium); } .chip.low { color: var(--low); }
+details { margin-top: 4px; }
+summary { cursor: pointer; color: var(--ink-2); font-size: 0.85rem; }
+table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+th, td { text-align: left; padding: 4px 8px 4px 0; border-bottom: 1px solid var(--grid); vertical-align: top; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.scroll { overflow-x: auto; }
+footer { margin-top: 24px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Bid Alert: tender screening</h1>
+    <p class="sub">Screened as of {{ screened_as_of }} for the profile <em>{{ profile.name }}</em>.</p>
+  </header>
+
+  {% if live %}
+  <div class="banner live" role="note">
+    <strong>Live public data</strong>
+    {% for s in live_sources %}{{ s.fetched }} tenders from {{ s.description }}{% if s.total_listed %} (the portal lists {{ "{:,}".format(s.total_listed) }} active tenders; this run reads the newest pages only){% endif %}.{% endfor %}
+    Source: Central Public Procurement Portal, <a href="https://eprocure.gov.in/cppp/">eprocure.gov.in</a>. Titles are reproduced unmodified; check the portal before bidding.
+  </div>
+  {% else %}
+  <div class="banner demo" role="note">
+    <strong>Demo data, not real tenders</strong>
+    The live source was not available for this run, so the pipeline ran on
+    {% for s in sources %}{{ s.description }}{% if not loop.last %}; {% endif %}{% endfor %}.
+    Counts below describe that demo data only.
+  </div>
+  {% endif %}
+
+  <section class="grid kpis" aria-label="Run summary">
+    <div class="tile"><div class="v">{{ kpis.fetched }}</div><div class="l">fetched</div></div>
+    <div class="tile"><div class="v">{{ kpis.duplicates }}</div><div class="l">duplicates removed</div></div>
+    <div class="tile"><div class="v">{{ kpis.ineligible }}</div><div class="l">removed by filters</div></div>
+    <div class="tile"><div class="v">{{ kpis.eligible }}</div><div class="l">eligible</div></div>
+    <div class="tile"><div class="v">{{ kpis.high }}</div><div class="l">high priority</div></div>
+    <div class="tile"><div class="v">{{ kpis.medium }}</div><div class="l">medium priority</div></div>
+    <div class="tile"><div class="v">{{ kpis.low }}</div><div class="l">low priority</div></div>
+  </section>
+
+  <div class="grid two">
+    <section class="card" aria-labelledby="funnel-h">
+      <h2 id="funnel-h">Screening funnel</h2>
+      {% for b in funnel %}
+      <div class="hbar" title="{{ b.label }}: {{ b.count }}">
+        <span class="lbl">{{ b.label }}</span>
+        <span class="track"><span class="fill" style="display:block;width:{{ b.pct }}%"></span></span>
+        <span class="n">{{ b.count }}</span>
+      </div>
+      {% endfor %}
+    </section>
+    <section class="card" aria-labelledby="reasons-h">
+      <h2 id="reasons-h">Why tenders were filtered out</h2>
+      {% for b in reasons %}
+      <div class="hbar" title="{{ b.label }}: {{ b.count }}">
+        <span class="lbl">{{ b.label }}</span>
+        <span class="track"><span class="fill" style="display:block;width:{{ b.pct }}%"></span></span>
+        <span class="n">{{ b.count }}</span>
+      </div>
+      {% else %}<p class="small">No tender was filtered out.</p>{% endfor %}
+      <p class="small">A tender can fail more than one rule. Rules the listing cannot answer (value, turnover, experience) are marked "check document", not failed.</p>
+    </section>
+  </div>
+
+  <section class="card" aria-labelledby="short-h">
+    <h2 id="short-h">Top {{ shortlist|length }} eligible tenders, with the score explained</h2>
+    <div class="legend" aria-label="Score factors">
+      {% for key, label, w in factors %}<span><span class="sw" style="background:var(--f-{{ key }})"></span>{{ label }} ({{ (w * 100)|round|int }}%)</span>{% endfor %}
+      <span><span class="sw hatch" style="background:var(--muted)"></span>not in listing, scored neutral</span>
+    </div>
+    {% for t in shortlist %}
+    <article class="tender">
+      <h3>{{ t.rank }}. {{ t.title }} <span class="chip {{ t.tier }}">{{ t.tier }} {{ "%.2f"|format(t.score) }}</span></h3>
+      <div class="meta">{{ t.organisation }} &middot; {{ t.portal }} &middot; ID {{ t.tender_id }}
+        &middot; closes {{ t.closing }} ({{ t.days_left }} days){% if t.url %} &middot; <a href="{{ t.url }}" rel="noopener">listing</a>{% endif %}</div>
+      <div class="stack" role="img" aria-label="Score {{ '%.2f'|format(t.score) }} of 1.00">
+        {% for f in t.factors %}{% if f.pct > 0 %}<span class="{{ '' if f.known else 'hatch' }}" style="width:{{ f.pct }}%;background-color:var(--f-{{ f.name }})" title="{{ f.label }}: +{{ '%.3f'|format(f.contribution) }} ({{ f.reason }})"></span>{% endif %}{% endfor %}
+      </div>
+      <details>
+        <summary>Why this score{% if t.unverified %} &middot; check document for: {{ t.unverified|join(", ") }}{% endif %}</summary>
+        <div class="scroll"><table>
+          <thead><tr><th>Factor</th><th class="num">Weight</th><th class="num">Value</th><th class="num">Contribution</th><th>Reason</th></tr></thead>
+          <tbody>
+          {% for f in t.factors %}
+            <tr><td>{{ f.label }}</td><td class="num">{{ "%.2f"|format(f.weight) }}</td><td class="num">{{ "%.2f"|format(f.value) }}</td><td class="num">{{ "%.3f"|format(f.contribution) }}</td><td>{{ f.reason }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table></div>
+        {% if t.keywords %}<p class="small">Watchlist keywords: {{ t.keywords|join(", ") }}</p>{% endif %}
+      </details>
+    </article>
+    {% else %}
+    <p class="small">No eligible tenders in this run.</p>
+    {% endfor %}
+  </section>
+
+  <div class="grid two">
+    <section class="card" aria-labelledby="close-h">
+      <h2 id="close-h">Eligible tenders by time to close</h2>
+      <table><tbody>
+        {% for label, n in buckets %}<tr><td>Closing {{ label }}</td><td class="num">{{ n }}</td></tr>{% endfor %}
+      </tbody></table>
+      <p class="small" style="margin-top:8px">If the team bid on every shortlisted tender, preparing each over the last {{ profile.bid_preparation_days }} days before it closes, up to <strong>{{ peak }}</strong> bids would be in preparation at once{% if peak_at %} (from {{ peak_at }}){% endif %}.</p>
+    </section>
+    <section class="card" aria-labelledby="kw-h">
+      <h2 id="kw-h">Most frequent watchlist keywords</h2>
+      {% for b in keywords %}
+      <div class="hbar" title="{{ b.label }}: {{ b.count }}">
+        <span class="lbl">{{ b.label }}</span>
+        <span class="track"><span class="fill" style="display:block;width:{{ b.pct }}%"></span></span>
+        <span class="n">{{ b.count }}</span>
+      </div>
+      {% else %}<p class="small">No watchlist keyword matched.</p>{% endfor %}
+    </section>
+  </div>
+
+  {% if duplicates %}
+  <section class="card" aria-labelledby="dup-h">
+    <h2 id="dup-h">Duplicates detected</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Title</th><th>Portal</th><th>Duplicate of</th><th class="num">Jaccard similarity</th></tr></thead>
+      <tbody>{% for d in duplicates %}<tr><td>{{ d.title }}</td><td>{{ d.portal }}</td><td>{{ d.of }}</td><td class="num">{{ "%.2f"|format(d.similarity) }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+  {% endif %}
+
+  <section class="card" aria-labelledby="src-h">
+    <h2 id="src-h">Sources in this run</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Source</th><th>Status</th><th class="num">Tenders</th><th class="num">Seconds</th></tr></thead>
+      <tbody>
+      {% for s in sources %}<tr><td>{{ s.description }}</td><td>{{ "ok" if s.ok else "failed: " ~ (s.error or "") }}</td><td class="num">{{ s.fetched }}</td><td class="num">{{ s.seconds }}</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+
+  <footer class="small">
+    <p>Generated {{ generated_at }} by bidalert {{ version }}{% if commit %} (commit {{ commit }}){% endif %}{% if duration_s is not none %} in {{ duration_s }} s{% endif %}{% if run_url %} &middot; <a href="{{ run_url }}">workflow run</a>{% endif %} &middot; <a href="summary.json">summary.json</a>.</p>
+    <p>A public re-implementation of a screening workflow from a 2024 internship at Bid Alert. Scores are hand-set business rules, not predictions.
+      <a href="https://github.com/Worldisbinary/bid-alert-tender-pipeline">Source code and limitations</a>.</p>
+  </footer>
+</main>
+</body>
+</html>

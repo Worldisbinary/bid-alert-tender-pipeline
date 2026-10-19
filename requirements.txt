@@ -1,3 +1,13 @@
-pandas>=2.0
-numpy>=1.24
-openpyxl>=3.1
+# Runtime dependencies, exact pins tested in CI (Python 3.11-3.13 on Linux) and locally
+# (Python 3.14 on Windows 11). Ranges live in pyproject.toml; bump pins deliberately.
+alembic==1.20.0
+beautifulsoup4==4.15.0
+fastapi==0.146.0
+httpx==0.28.1
+jinja2==3.1.6
+openpyxl==3.1.5
+prometheus-client==0.26.0
+psycopg[binary]==3.3.6
+pydantic==2.14.1
+sqlalchemy==2.1.5
+uvicorn==0.54.0

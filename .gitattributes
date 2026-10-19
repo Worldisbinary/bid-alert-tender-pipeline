@@ -1,0 +1,4 @@
+# Normalise line endings in the repository; shell scripts, units and configs must stay LF.
+* text=auto eol=lf
+*.xlsx binary
+*.png binary

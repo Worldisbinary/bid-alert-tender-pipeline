@@ -1,0 +1,57 @@
+# Company profile used for screening.
+#
+# This is an ILLUSTRATIVE profile of a small chemicals / laboratory supplies MSME,
+# similar in shape to the profiles screened during the 2024 internship. It is not a
+# real client's profile. Copy this file, edit it, and point BIDALERT_PROFILE at it.
+
+[company]
+name = "Example Lab & Chemical Supplies (illustrative)"
+annual_turnover_cr = 2.5          # INR crore
+years_in_business = 4
+is_msme = true
+preferred_categories = ["Chemical Supplies", "Laboratory Equipment", "Raw Materials", "Pharmaceuticals"]
+preferred_states = ["Rajasthan", "Gujarat", "Maharashtra", "Andhra Pradesh"]
+
+[eligibility]
+min_value_inr = 500_000           # ignore tenders below INR 5 lakh
+max_value_inr = 50_000_000        # and above INR 5 crore
+min_days_to_deadline = 7          # need a week to prepare a bid
+bid_preparation_days = 10         # used for the workload (sweep-line) estimate
+# Hard exclusions: whole-word, case-insensitive, matched with Aho-Corasick.
+exclude_keywords = [
+    "construction of", "civil work", "civil works", "road", "building", "painting",
+    "hiring of vehicle", "hiring of vehicles", "manpower", "housekeeping",
+    "security services", "catering", "canteen",
+]
+
+# Watchlist: category -> keywords. A hit in the tender title infers the category
+# when the portal does not publish one (CPPP listings do not).
+[watchlist]
+"Chemical Supplies" = [
+    "chemical", "chemicals", "reagent", "reagents", "solvent", "solvents", "acid",
+    "caustic soda", "sodium hypochlorite", "chlorine", "alum", "polyelectrolyte",
+    "resin", "epoxy", "lubricant", "lubricants", "grease", "coolant",
+]
+"Laboratory Equipment" = [
+    "laboratory", "lab equipment", "analyser", "analyzer", "spectrophotometer",
+    "chromatograph", "chromatography", "microscope", "centrifuge", "glassware",
+    "fume hood", "incubator", "autoclave", "testing equipment", "calibration",
+]
+"Pharmaceuticals" = [
+    "medicine", "medicines", "drug", "drugs", "pharmaceutical", "pharmaceuticals",
+    "tablet", "tablets", "injection", "injections", "vaccine", "vaccines", "surgical",
+]
+"Raw Materials" = [
+    "raw material", "raw materials", "steel", "aluminium", "aluminum", "copper",
+    "coal", "sulphur", "sulfur", "limestone", "gypsum",
+]
+
+[scoring]
+# Weights must sum to 1.0. Same five factors as the internship model.
+weights = { category = 0.30, state = 0.20, msme = 0.15, value = 0.20, deadline = 0.15 }
+high_tier = 0.70
+medium_tier = 0.40
+
+[alerts]
+reminder_days = [7, 3, 1]          # remind this many days before closing
+top_k = 15                         # size of the ranked shortlist / digest
