@@ -1,0 +1,81 @@
+name: Dashboard (GitHub Pages)
+
+# Runs the real pipeline every morning and publishes the dashboard.
+# Live source: the public CPPP "Latest Active Tenders" listing (polite: robots.txt,
+# 3 s between requests, backoff with jitter). If the portal is unreachable from the
+# runner, the run falls back to SYNTHETIC data and the page says so in a banner.
+
+on:
+  schedule:
+    - cron: "30 1 * * *" # 07:00 IST daily
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "requirements.txt"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - run: pip install -r requirements.txt && pip install --no-deps .
+      - name: Run pipeline (live CPPP, fall back to synthetic)
+        env:
+          BIDALERT_DATABASE_URL: sqlite:///data/pages.db
+          BIDALERT_CPPP_MAX_PAGES: ${{ vars.CPPP_MAX_PAGES || '20' }}
+          BIDALERT_SITE_DIR: site
+          BIDALERT_OUTPUT_DIR: output
+          BIDALERT_LOG_FORMAT: text
+        run: bidalert run --sources "${{ vars.DASHBOARD_SOURCE || 'cppp' }}" --fallback synthetic
+      - name: Sanity-check the published numbers
+        run: |
+          python - <<'EOF' | tee -a "$GITHUB_STEP_SUMMARY"
+          import json
+          s = json.load(open("site/summary.json"))
+          st = s["stats"]
+          print(f"live={s['live']} fetched={st['fetched']} unique={st['unique']} "
+                f"eligible={st['eligible']} high={st['high']} medium={st['medium']} low={st['low']}")
+          for src in st["sources"]:
+              print(f"- {src['name']}: ok={src['ok']} fetched={src['fetched']} error={src['error']}")
+          assert st["fetched"] > 0 and st["unique"] > 0, "dashboard would show zero tenders"
+          EOF
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: screened-tenders-xlsx
+          path: output/screened_tenders.xlsx
+          retention-days: 30
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
