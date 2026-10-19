@@ -1,0 +1,99 @@
+# Local / single-host production stack:
+#   postgres  - database (named volume)
+#   migrate   - one-shot `alembic upgrade head`, must succeed before api/worker start
+#   api       - FastAPI on :8000 (internal network only)
+#   worker    - runs the pipeline every BIDALERT_WORKER_INTERVAL seconds, writes the dashboard
+#   nginx     - public entry point on :8080: dashboard at /, API at /api/
+#
+#   cp .env.example .env    # optional
+#   docker compose up -d --build --wait
+#   open http://localhost:8080/  and  http://localhost:8080/api/docs
+
+x-app: &app
+  build: .
+  image: bidalert:local
+  restart: unless-stopped
+  env_file:
+    - path: .env
+      required: false
+  environment: &app-env
+    BIDALERT_DATABASE_URL: postgresql+psycopg://bidalert:${POSTGRES_PASSWORD:-bidalert-local-only}@postgres:5432/bidalert
+    BIDALERT_SITE_DIR: /srv/site
+    BIDALERT_LOG_FORMAT: json
+  read_only: true
+  tmpfs:
+    - /tmp
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bidalert
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bidalert-local-only}
+      POSTGRES_DB: bidalert
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bidalert -d bidalert"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    <<: *app
+    restart: "no"
+    command: ["bidalert", "init-db"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *app
+    command: ["bidalert", "serve", "--host", "0.0.0.0", "--port", "8000", "--root-path", "/api"]
+    expose:
+      - "8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *app
+    environment:
+      <<: *app-env
+      BIDALERT_SOURCES: ${BIDALERT_SOURCES:-cppp}
+    command: ["sh", "-c", "exec bidalert worker --interval ${BIDALERT_WORKER_INTERVAL:-21600}"]
+    volumes:
+      - site:/srv/site
+      - workdata:/var/lib/bidalert
+    healthcheck:
+      disable: true
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  nginx:
+    image: nginx:1.28-alpine
+    restart: unless-stopped
+    ports:
+      - "${BIDALERT_HTTP_PORT:-8080}:80"
+    volumes:
+      - ./deploy/nginx/bidalert.compose.conf:/etc/nginx/conf.d/default.conf:ro
+      - site:/usr/share/nginx/html:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  site:
+  workdata:
