@@ -75,6 +75,7 @@
 
     - name: Apply database migrations
       ansible.builtin.command: /opt/bidalert/venv/bin/bidalert init-db
+      become: true
       become_user: bidalert
       environment:
         BIDALERT_DATABASE_URL: "{{ bidalert_database_url }}"

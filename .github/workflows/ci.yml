@@ -127,7 +127,8 @@ jobs:
             [ "$total" -gt 0 ] && break; sleep 2
           done
           echo "tenders via API: $total"; test "$total" -gt 0
-          curl -fsS http://localhost:8080/api/tenders/1/score | jq -e '.factors | length == 5'
+          top=$(curl -fsS "http://localhost:8080/api/tenders?page_size=1&sort=score" | jq .items[0].id)
+          curl -fsS "http://localhost:8080/api/tenders/$top/score" | jq -e ".factors | length == 5"
           curl -fsS http://localhost:8080/ | grep -q "Demo data, not real tenders"
           test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/metrics)" = "404"
           curl -fsS http://localhost:8080/api/docs | grep -q swagger
