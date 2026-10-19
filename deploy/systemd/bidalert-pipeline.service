@@ -1,0 +1,27 @@
+# One pipeline run (fetch -> screen -> store -> report -> alert). Triggered by the timer.
+[Unit]
+Description=Bid Alert pipeline run
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=bidalert
+Group=bidalert
+WorkingDirectory=/var/lib/bidalert
+EnvironmentFile=/etc/bidalert/bidalert.env
+ExecStart=/opt/bidalert/venv/bin/bidalert run
+TimeoutStartSec=30min
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+ReadWritePaths=/var/lib/bidalert /srv/bidalert

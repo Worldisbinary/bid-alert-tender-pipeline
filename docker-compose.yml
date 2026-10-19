@@ -70,8 +70,14 @@ services:
     volumes:
       - site:/srv/site
       - workdata:/var/lib/bidalert
+    # Healthy once the first run has written the dashboard (lets `up --wait` work).
     healthcheck:
-      disable: true
+      test: ["CMD", "python", "-c", "import os, sys; sys.exit(not os.path.exists('/srv/site/index.html'))"]
+      interval: 10s
+      timeout: 3s
+      start_period: 150s
+      start_interval: 3s
+      retries: 3
     depends_on:
       migrate:
         condition: service_completed_successfully

@@ -1,0 +1,143 @@
+---
+# Bare-host deployment of Bid Alert on Ubuntu 22.04/24.04:
+#   venv install from a git tag -> env file -> DB migration -> systemd (API + 6-hourly
+#   pipeline timer) -> nginx (dashboard at /, API at /api/).
+#
+#   ansible-playbook -i deploy/ansible/inventory.ini deploy/ansible/site.yml \
+#     -e bidalert_version=v0.2.0
+# Secrets (SMTP / Telegram) go in bidalert_extra_env, ideally from ansible-vault.
+- name: Deploy Bid Alert
+  hosts: bidalert
+  become: true
+  vars:
+    bidalert_version: main
+    bidalert_repo: https://github.com/Worldisbinary/bid-alert-tender-pipeline.git
+    bidalert_server_name: _
+    bidalert_database_url: sqlite:////var/lib/bidalert/bidalert.db
+    bidalert_sources: cppp
+    bidalert_cppp_max_pages: 20
+    bidalert_alerts_enabled: false
+    bidalert_extra_env: {}
+    bidalert_systemd_src: "{{ playbook_dir }}/../systemd"
+
+  tasks:
+    - name: Install OS packages
+      ansible.builtin.apt:
+        name: [python3-venv, python3-pip, git, nginx]
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Create service group
+      ansible.builtin.group:
+        name: bidalert
+        system: true
+
+    - name: Create service user
+      ansible.builtin.user:
+        name: bidalert
+        group: bidalert
+        system: true
+        home: /var/lib/bidalert
+        shell: /usr/sbin/nologin
+        create_home: false
+
+    - name: Create directories
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: "{{ item.owner }}"
+        group: bidalert
+        mode: "{{ item.mode }}"
+      loop:
+        - { path: /opt/bidalert, owner: root, mode: "0755" }
+        - { path: /etc/bidalert, owner: root, mode: "0750" }
+        - { path: /var/lib/bidalert, owner: bidalert, mode: "0750" }
+        - { path: /srv/bidalert, owner: bidalert, mode: "0755" }
+        - { path: /srv/bidalert/site, owner: bidalert, mode: "0755" }
+
+    - name: Install bidalert into a virtualenv
+      ansible.builtin.pip:
+        name: "git+{{ bidalert_repo }}@{{ bidalert_version }}"
+        virtualenv: /opt/bidalert/venv
+        virtualenv_command: python3 -m venv
+      notify: Restart API
+
+    - name: Write environment file
+      ansible.builtin.template:
+        src: templates/bidalert.env.j2
+        dest: /etc/bidalert/bidalert.env
+        owner: root
+        group: bidalert
+        mode: "0640"
+      no_log: true
+      notify: Restart API
+
+    - name: Apply database migrations
+      ansible.builtin.command: /opt/bidalert/venv/bin/bidalert init-db
+      become_user: bidalert
+      environment:
+        BIDALERT_DATABASE_URL: "{{ bidalert_database_url }}"
+      register: bidalert_migrate
+      changed_when: "'upgrade' in bidalert_migrate.stderr"
+
+    - name: Install systemd units
+      ansible.builtin.copy:
+        src: "{{ bidalert_systemd_src }}/{{ item }}"
+        dest: /etc/systemd/system/{{ item }}
+        owner: root
+        group: root
+        mode: "0644"
+      loop:
+        - bidalert-api.service
+        - bidalert-pipeline.service
+        - bidalert-pipeline.timer
+      notify: Restart API
+
+    - name: Enable and start the API and the pipeline timer
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        enabled: true
+        state: started
+        daemon_reload: true
+      loop:
+        - bidalert-api.service
+        - bidalert-pipeline.timer
+
+    - name: Configure nginx site
+      ansible.builtin.template:
+        src: templates/nginx-bidalert.conf.j2
+        dest: /etc/nginx/sites-available/bidalert.conf
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload nginx
+
+    - name: Enable nginx site
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/bidalert.conf
+        dest: /etc/nginx/sites-enabled/bidalert.conf
+        state: link
+      notify: Reload nginx
+
+    - name: Disable the default nginx site
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: Reload nginx
+
+    - name: Validate nginx configuration before reloading
+      ansible.builtin.command: nginx -t
+      changed_when: false
+
+  handlers:
+    - name: Restart API
+      ansible.builtin.systemd_service:
+        name: bidalert-api.service
+        state: restarted
+        daemon_reload: true
+
+    - name: Reload nginx
+      ansible.builtin.systemd_service:
+        name: nginx
+        state: reloaded

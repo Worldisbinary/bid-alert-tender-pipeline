@@ -1,0 +1,32 @@
+# Bare-host deployment (installed by deploy/ansible/site.yml). nginx proxies /api/ to this.
+[Unit]
+Description=Bid Alert API (FastAPI)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=exec
+User=bidalert
+Group=bidalert
+WorkingDirectory=/var/lib/bidalert
+EnvironmentFile=/etc/bidalert/bidalert.env
+ExecStart=/opt/bidalert/venv/bin/bidalert serve --host 127.0.0.1 --port 8000 --root-path /api
+Restart=on-failure
+RestartSec=5
+
+# Hardening: read-only OS, private /tmp, no privilege escalation.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+ReadWritePaths=/var/lib/bidalert
+
+[Install]
+WantedBy=multi-user.target

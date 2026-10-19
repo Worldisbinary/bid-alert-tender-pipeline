@@ -140,6 +140,45 @@ jobs:
         if: always()
         run: docker compose down -v
 
+  deploy-config:
+    name: Validate Ansible, systemd, nginx and Jenkinsfile
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Ansible syntax check and ansible-lint (production profile)
+        working-directory: deploy/ansible
+        run: |
+          pip install ansible-core==2.20.10 ansible-lint==26.9.0
+          ansible-playbook -i inventory.example.ini site.yml --syntax-check
+          ansible-lint --profile production site.yml
+      - name: systemd-analyze verify
+        run: |
+          sudo useradd --system bidalert || true
+          sudo install -d /opt/bidalert/venv/bin /etc/bidalert /var/lib/bidalert /srv/bidalert
+          printf '#!/bin/sh\n' | sudo tee /opt/bidalert/venv/bin/bidalert >/dev/null
+          sudo chmod +x /opt/bidalert/venv/bin/bidalert
+          sudo touch /etc/bidalert/bidalert.env
+          systemd-analyze verify deploy/systemd/*.service deploy/systemd/*.timer
+      - name: nginx -t on both configs
+        run: |
+          pip install jinja2
+          python -c "import jinja2,sys; t=jinja2.Template(open('deploy/ansible/templates/nginx-bidalert.conf.j2').read()); open('/tmp/host.conf','w').write(t.render(bidalert_server_name='example.org'))"
+          docker run --rm -v /tmp/host.conf:/etc/nginx/conf.d/default.conf:ro nginx:1.28-alpine nginx -t
+          docker run --rm --add-host api:127.0.0.1 \
+            -v "$PWD/deploy/nginx/bidalert.compose.conf:/etc/nginx/conf.d/default.conf:ro" \
+            nginx:1.28-alpine nginx -t
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+      - name: Jenkinsfile lint (npm-groovy-lint, errors fail)
+        run: npx --yes npm-groovy-lint@18.0.0 --failon error --no-insight Jenkinsfile
+
   security:
     name: Security scans
     runs-on: ubuntu-latest

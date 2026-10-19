@@ -29,3 +29,4 @@ site/
 Thumbs.db
 .vscode/
 .idea/
+deploy/ansible/inventory.ini
