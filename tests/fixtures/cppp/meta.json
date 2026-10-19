@@ -1,0 +1,17 @@
+{
+  "recorded_at": "2026-10-18T16:43:58+00:00",
+  "source": "https://eprocure.gov.in/cppp/latestactivetendersnew/cpppdata",
+  "note": "Public CPPP listing (Source: Central Public Procurement Portal). Used as an offline test fixture.",
+  "pages": [
+    {
+      "file": "page1.html",
+      "url": "https://eprocure.gov.in/cppp/latestactivetendersnew/cpppdata",
+      "rows": 10
+    },
+    {
+      "file": "page2.html",
+      "url": "https://eprocure.gov.in/cppp/latestactivetendersnew/cpppdata?url=aHR0cHM6Ly9lcHJvY3VyZS5nb3YuaW4vY3BwcC9sYXRlc3RhY3RpdmV0ZW5kZXJzbmV3L2NwcHBkYXRhP3BhZ2U9Mg%3D%3D",
+      "rows": 10
+    }
+  ]
+}
