@@ -148,9 +148,11 @@ class CpppAdapter(SourceAdapter):
         self.client = client
         self.max_pages = max_pages
         self.total_listed: int | None = None
+        self.page_overlap = 0  # rows repeated across pages (pager instability)
 
     def fetch(self) -> Iterator[Tender]:
         seen: set[str] = set()
+        self.page_overlap = 0
         for page in range(1, self.max_pages + 1):
             url = page_url(page)
             try:
@@ -168,8 +170,12 @@ class CpppAdapter(SourceAdapter):
             if not batch:
                 return
             for t in batch:
-                # New tenders are published while we paginate, which shifts rows onto
-                # the next page; skip ones we already yielded.
-                if t.source_tender_id not in seen:
-                    seen.add(t.source_tender_id)
-                    yield t
+                # CPPP's pager is not stable: adjacent pages overlap (a live probe of 20
+                # pages returned 162 unique IDs out of 200 rows), from tenders published
+                # mid-crawl and a non-unique sort key. Skip IDs already yielded.
+                if t.source_tender_id in seen:
+                    self.page_overlap += 1
+                    continue
+                seen.add(t.source_tender_id)
+                yield t
+        log.info("CPPP pagination done", extra={"repeated_rows": self.page_overlap})

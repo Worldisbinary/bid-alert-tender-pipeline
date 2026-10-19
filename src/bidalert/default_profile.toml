@@ -41,9 +41,11 @@ exclude_keywords = [
     "medicine", "medicines", "drug", "drugs", "pharmaceutical", "pharmaceuticals",
     "tablet", "tablets", "injection", "injections", "vaccine", "vaccines", "surgical",
 ]
+# Chemical feedstocks only. "coal" and "steel" were removed after the first live run:
+# on CPPP they mostly match mining services and steel fabrication works.
 "Raw Materials" = [
-    "raw material", "raw materials", "steel", "aluminium", "aluminum", "copper",
-    "coal", "sulphur", "sulfur", "limestone", "gypsum",
+    "raw material", "raw materials", "soda ash", "sulphur", "sulfur", "limestone",
+    "lime", "gypsum", "bentonite", "activated carbon",
 ]
 
 [scoring]

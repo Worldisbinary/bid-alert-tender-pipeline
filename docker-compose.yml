@@ -83,7 +83,14 @@ services:
       - "${BIDALERT_HTTP_PORT:-8080}:80"
     volumes:
       - ./deploy/nginx/bidalert.compose.conf:/etc/nginx/conf.d/default.conf:ro
-      - site:/usr/share/nginx/html:ro
+      # nocopy: otherwise Docker seeds the empty volume with nginx's root-owned
+      # index.html, which the non-root worker then cannot overwrite.
+      - type: volume
+        source: site
+        target: /usr/share/nginx/html
+        read_only: true
+        volume:
+          nocopy: true
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/healthz"]
       interval: 10s
@@ -92,6 +99,8 @@ services:
     depends_on:
       api:
         condition: service_healthy
+      worker:
+        condition: service_started  # worker mounts `site` first, so it owns the volume
 
 volumes:
   pgdata:

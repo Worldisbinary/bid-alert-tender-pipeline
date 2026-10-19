@@ -97,7 +97,9 @@ class RunResult:
 
     @property
     def shortlist(self) -> list[ScreenedTender]:
-        return top_k(self.eligible, self.top_k, key=lambda s: s.score.total if s.score else 0.0)
+        """Best k actionable tenders: eligible and in the high or medium tier."""
+        actionable = [s for s in self.eligible if s.score and s.score.tier in ("high", "medium")]
+        return top_k(actionable, self.top_k, key=lambda s: s.score.total if s.score else 0.0)
 
     @property
     def live(self) -> bool:

@@ -74,6 +74,17 @@ def test_non_preferred_category_and_state(profile):
     assert by["value"].value == 0.2
 
 
+def test_relevance_gate_caps_irrelevant_tenders_at_low(profile):
+    # Everything except the category is perfect: 0.70 would be "high" without the gate.
+    t = make_tender(
+        category="Logistics", state="Gujarat", msme_preferred=True,
+        estimated_value_inr=5_000_000, closing_at=NOW + timedelta(days=60),
+    )  # fmt: skip
+    s = score_tender(t, profile, NOW)
+    assert s.total == pytest.approx(0.70)
+    assert s.tier == "low" and "relevance gate" in s.factors[0].reason
+
+
 @pytest.mark.parametrize(
     ("score", "tier"), [(0.70, "high"), (0.6999, "medium"), (0.40, "medium"), (0.39, "low")]
 )

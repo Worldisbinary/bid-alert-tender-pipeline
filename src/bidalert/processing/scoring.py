@@ -8,6 +8,12 @@ Missing inputs get a neutral 0.5 and `known=False` instead of 0 or 1: a CPPP
 listing that does not publish the tender value should neither be rewarded nor
 punished for it. The weights are the hand-set business rules from the 2024
 internship model; they have not been fitted to win/loss outcomes.
+
+Relevance gate (a deliberate change from the internship model): a tender whose
+category factor is 0 - nothing the company sells - is capped at the "low" tier
+whatever its other factors say. Without it, the first live run ranked "Licensing
+of Kiosk spaces at Metro Stations" as medium priority for a chemicals supplier,
+purely on neutral unknowns plus a comfortable deadline.
 """
 
 from __future__ import annotations
@@ -96,4 +102,12 @@ def score_tender(
     )
 
     total = round(sum(f.contribution for f in factors), 4)
-    return ScoreResult(total=total, tier=tier_for(total, profile), factors=tuple(factors))
+    tier = tier_for(total, profile)
+    if factors[0].value == 0.0 and tier != "low":
+        tier = "low"
+        cat = factors[0]
+        factors[0] = FactorContribution(
+            cat.name, cat.weight, cat.value, cat.contribution, cat.known,
+            cat.reason + "; relevance gate caps the tier at low",
+        )  # fmt: skip
+    return ScoreResult(total=total, tier=tier, factors=tuple(factors))
